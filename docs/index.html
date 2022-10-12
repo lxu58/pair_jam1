@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>crisp-game-lib</title>
+    <meta
+      name="viewport"
+      content="width=device-width, height=device-height,
+    user-scalable=no, initial-scale=1, maximum-scale=1"
+    />
+    <script src="https://unpkg.com/sounds-some-sounds@1.0.5/build/index.js"></script>
+    <script src="https://unpkg.com/gif-capture-canvas@1.1.0/build/index.js"></script>
+    <script src="https://unpkg.com/terser@4.6.11/dist/bundle.min.js"></script>
+    <script src="https://unpkg.com/pixi.js@5.3.0/dist/pixi.min.js"></script>
+    <script src="https://unpkg.com/pixi-filters@3.1.1/dist/pixi-filters.js"></script>
+    <script>
+      var module = {};
+    </script>
+    <script src="https://unpkg.com/lodash.clonedeep@4.5.0/index.js"></script>
+    <script src="bundle.js"></script>
+    <script>
+     title = "RUN ! ROCK!!";
+
+description = 
+`[click] weaken
+
+[double] push
+
+[hold] explode
+`;
+
+characters = [
+	` 
+`,
+
+
+
+];
+
+
+
+options = {
+	viewSize: { x: 100, y: 150 },
+	theme: "pixel",
+	seed: 63,
+	isPlayingBgm: true,
+};
+
+
+
+
+// declare house
+/**
+ * @typedef { object } house
+ * @property { Vector } pos
+ * @property { number } hp_cap
+ * @property { number } hp_consume
+ */
+let house;
+let house_init_pos;
+
+// declare smoke
+/**
+ * @typedef { object } smoke
+ * @property { Vector } pos
+ * @property { number } generate_time
+ */
+ let smoke;
+ let smoke_maxNum;;
+ let smoke_temp_Time;
+
+// declare snow
+/**
+* @typedef { object } snow 
+* @property { Vector } pos 
+* @property { Vector } speed 
+*/
+ let snow;
+ let snow_speed_MIN;
+ let snow_speed_MAX;
+ let snow_edge;
+
+
+
+
+
+//time event 
+let gobalTimer = 0;
+let currentTime;
+let waitTime;
+
+
+
+// declare rock
+/**
+ * @typedef { object } rock
+ * @property { Vector } pos
+ * @property { number } rotation
+ */
+let rock;
+let rock_rotationSpeed;
+let rock_rotationSpeed_original;
+let rock_fallHeight;
+let rock_fallAccelation;
+let rock_fallVelocity;
+let rock_endHight;
+let rock_origin;
+let rock_createTime;
+let rock_destoryTime;
+let rock_spawnDuration;
+
+let rock_HP_max;
+let rock_HP_current;
+let rock_HP_click;
+let rock_destoryTrigger = false;
+let rock_damage;
+
+let rock_temp_Accelation;
+let rock_temp_time;
+let rock_temp_time_part2;
+let rock_temp_dataPush = false;
+
+
+//declare HP
+/**
+ * @typedef { object } HP
+ * @property { Vector } pos
+ */
+let HP;
+let current_HP;
+
+
+
+//score
+let game_score;
+
+
+//for player control
+let firstClick;
+let secondClick;
+let twoClicksDuration;
+let holdDuration;
+let holdCheck_oneTime;
+
+
+
+//time event
+function timeEvent_repeat(currentTime, waitTime) {
+	if (currentTime % waitTime == 0) {
+		if(snow_edge <= 80){
+			snow_edge += 1.5;
+		}
+
+	}
+}
+
+
+function update() {
+
+	//time event setup
+	gobalTimer++;
+	currentTime = (gobalTimer / 60).toFixed(3);
+
+
+	if(!ticks){
+
+
+		//init house
+		house_init_pos = vec(50, 135);
+		house = {
+			pos: house_init_pos,
+			hp_cap: 50,
+			hp_consume: 5,
+		};
+		smoke = [];
+		smoke_maxNum = 4;
+
+		//init snow
+		snow_speed_MIN = 0.2;
+ 	 	snow_speed_MAX = 0.7;
+		snow_edge = 20;
+		//time snowDropDown
+		waitTime = 1;
+		snow = times(100, () => {
+			const posX = rnd(0, 100);
+			const posY = rnd(-100, snow_edge);
+			return {
+				pos: vec(posX, posY),
+				speed: rnd(snow_speed_MIN, snow_speed_MAX)
+			};
+		});
+
+		//rock init
+		rock = [];
+		rock_rotationSpeed_original = 0.01;
+		rock_fallAccelation = 3; //note this will be multipied by difficulty
+		rock_destoryTime = 0;
+		rock_spawnDuration = 0;
+		rock_HP_max = 10;
+		rock_HP_click = 1;
+
+
+		//HP init
+		HP = {
+			pos: vec(75, 145),
+		}
+		current_HP = 50;
+
+
+		//player control setup
+		firstClick = false;
+		secondClick = false;
+		twoClicksDuration = 0;
+		holdDuration = 0;
+
+
+
+
+
+	}
+
+	//draw house
+	color("black");
+	box(house.pos, 50, 10);
+	line(27, 130, 35, 125, 1);
+	line(35, 125, 67, 125, 1);
+	line(67, 125, 75, 130, 1);
+
+	color("black");
+	box(40, 122, 3, 5);
+	color("white");
+	box(35, 138, 3, 7);
+
+	//console.log(input.pos);
+
+	//draw smoke
+	if (smoke.length == 0) {
+		smoke.push({
+			pos: vec(40, 116),
+			generate_time: currentTime,
+		});
+		smoke_temp_Time = currentTime;
+	} else if (smoke.length != 0 && smoke.length < smoke_maxNum) {
+
+		if (currentTime - smoke_temp_Time > rnd(1, 3)) {
+			smoke.push({
+				pos: vec(40, 116),
+				generate_time: currentTime,
+			});
+			smoke_temp_Time = currentTime;
+		}
+	}
+	for (let i = 0; i < smoke.length; i++) {
+		color("black");
+		text("O", smoke[i].pos);
+	}
+	remove(smoke, (s) => {
+		s.pos.x += 0.1;
+		s.pos.y -= 0.02;
+		return (currentTime - s.generate_time) > 4;
+	});
+
+
+
+	//draw rock
+	if (rock.length == 0 && currentTime - rock_destoryTime >= rock_spawnDuration) {
+		rock_createTime = currentTime;
+		rock_rotationSpeed = rock_rotationSpeed_original;
+		rock_origin = vec(50, snow_edge);
+		rock_temp_dataPush = false;
+		rock_destoryTrigger = false;
+		rock_HP_current = rock_HP_max;
+		temp_Accelation = rock_fallAccelation * difficulty;
+		rock.push({
+			pos: vec(rock_origin.x, rock_origin.y),
+			rotation: 0,
+		});
+		rock.push({
+			pos: vec(rock_origin.x, rock_origin.y),
+			rotation: PI * 0.25,
+		});
+		rock.push({
+			pos: vec(rock_origin.x, rock_origin.y),
+			rotation: PI * 0.5,
+		});
+		rock.push({
+			pos: vec(rock_origin.x, rock_origin.y),
+			rotation: PI * 0.75,
+		});
+	}
+
+
+	remove(rock, (r) => {
+
+
+		rock_temp_time = currentTime - rock_createTime;
+		//accelarate at beginning. but stop accelarate after 1 second
+		if (rock_temp_time <=5) {
+			//h = v0t + 1/2 at^2
+			rock_fallHeight = rock_origin.y +  0.5 * temp_Accelation * Math.pow(rock_temp_time, 2);
+			r.pos.y = rock_fallHeight;
+			//spin faster when acc
+			rock_rotationSpeed = rock_rotationSpeed * 1.001;
+			r.rotation += rock_rotationSpeed;
+			//store end v
+			rock_fallVelocity = temp_Accelation * rock_temp_time;
+
+			rock_temp_time_part2 = currentTime;
+		} else {
+			//this loop will only run one time
+			if(rock_temp_dataPush == false){
+				rock_origin.y = rock_fallHeight;
+				rock_temp_dataPush = true;
+			}
+			r.rotation += rock_rotationSpeed;
+			//h = h0 + v0t without accelation
+			r.pos.y =  rock_origin.y + rock_fallVelocity * (currentTime - rock_temp_time_part2);
+
+		}
+
+		if(rock_HP_current > 7){
+			color("cyan");
+
+			rock_damage = 4;
+		}else if(rock_HP_current > 3){
+			color("light_cyan");
+			rock_damage = 2;
+		}else if(rock_HP_current > 1){
+			color("blue");
+
+			rock_damage = 1;
+		}else{
+			color("light_blue");
+			rock_damage = 1;
+		}
+
+		const isCollidingWithHouse = bar(r.pos, 10, 3, r.rotation, 0.5).isColliding.rect.black;
+		
+		//play("jump");
+
+		if (isCollidingWithHouse) {
+			rock_destoryTime = currentTime;
+			// play("explosion");
+			color("light_black");
+			particle(r.pos,
+				100, // The number of particles
+				2, // The speed of the particles
+				PI, // The emitting angle
+				2 * PI  // The emitting width
+			);
+			current_HP -= rock_damage;
+			play("explosion");
+		}
+
+
+		return (isCollidingWithHouse || rock_destoryTrigger);
+	});
+
+
+
+
+	if (input.isJustPressed) {
+		//first click = true means it's single click
+		if (!firstClick) {
+			firstClick = true;
+		} else {
+			//second click = true means it's double click
+			secondClick = true;
+			firstClick = false;
+		}
+	}
+	if (input.isPressed) {
+		holdDuration++;
+		//if u hold, it will run hold code instead of single/double click
+		if (holdDuration >= 15) {
+			//=====================================
+			//put your code for holding here
+			//run this one time
+			if(!holdCheck_oneTime){
+
+			//hp > 7 , 0% destory
+			//hp <= 7, 30% destory
+			//hp <= 3, 70& destory
+			//hp <= 1, 100% destory
+			if (rock_HP_current > 7) {
+				rock_destoryTrigger = false;
+			} else if (rock_HP_current <= 7 && rock_HP_current > 3) {
+
+				if (Math.floor(Math.random() * 10) + 1 <= 3) {
+					rock_destoryTrigger = true;
+				} else {
+					rock_destoryTrigger = false;
+				}
+
+			} else if (rock_HP_current <= 3 && rock_HP_current > 1) {
+				if (Math.floor(Math.random() * 10) + 1 <= 7) {
+					rock_destoryTrigger = true;
+				} else {
+					rock_destoryTrigger = false;
+				}
+
+			} else if (rock_HP_current <= 1) {
+				if (Math.floor(Math.random() * 10) + 1 <= 10) {
+					rock_destoryTrigger = true;
+				} else {
+					rock_destoryTrigger = false;
+				}
+
+			}
+
+			//display point
+				if (rock_destoryTrigger) {
+					particle(rock_origin,
+				100, // The number of particles
+				2, // The speed of the particles
+				PI, // The emitting angle
+				2 * PI  // The emitting width
+				);
+					play("explosion");
+					addScore(Math.trunc(currentTime), rock_origin);
+				}else{
+					play("powerUp");
+				}
+
+
+			holdCheck_oneTime = true;
+			}
+
+
+
+			//=====================================
+			secondClick = false;
+			firstClick = false;
+		}
+	} else {
+		if (firstClick && twoClicksDuration < 7) {
+			twoClicksDuration++;
+		} else {
+			if (firstClick && holdDuration < 15) {
+				//=====================================
+				//put your code for single click here
+				if(rock.length != 0){
+					rock_HP_current--;
+					play("hit");
+				}
+
+
+
+				//=====================================
+			}
+			if (secondClick && holdDuration < 15) {
+				//=====================================
+				//put your code for double click here		
+				if(rock.length != 0){
+				rock_origin.y -= 10;
+				}
+				//=====================================
+				secondClick = false;
+			}
+			holdDuration = 0;
+			twoClicksDuration = 0;
+			firstClick = false;
+		}
+
+		holdCheck_oneTime = false;
+	}
+
+	//draw snow
+	snow.forEach((s) => {
+		s.pos.x += s.speed;
+		if (s.pos.x > 100) {
+			s.pos.x = -5;
+			s.pos.y += 10;
+		}
+		color("light_cyan");
+		text("*", s.pos);
+	});
+
+	//snow edge change 
+	timeEvent_repeat(currentTime, waitTime)
+
+
+	//display energy
+	color("light_red");
+	text("HP", 10, 144);
+	//	bar(energy.pos, energy.current_energy, 8, -PI / 2, 0);
+	bar(HP.pos, current_HP, 6, PI, 0);
+
+	if(current_HP <= 0){
+		end();
+	}
+
+
+
+}
+
+      window.addEventListener("load", onLoad);
+    </script>
+  </head>
+  <body style="background: #ddd"></body>
+</html>
